@@ -1,37 +1,49 @@
-package taskhandler
+package taskHandler
 
 import (
-	"fmt"
-	"strings"
+	"encoding/json"
+	"net/http"
+	"sync"
 )
 
 type toDo struct {
-    Id          int
-    Description string
+	Id          int
+	Description string
 }
 
 type toDoList struct {
-    todos  map[int]toDo
-    nextId int
+	mu   sync.Mutex
+	list map[int]string
 }
 
-http.HandleFunc("/todos", handleTodos)
+func NewServer() http.Handler {
+	todos := toDoList{list: make(map[int]string)}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /todos", todos.getAllToDos)
+	// mux.HandleFunc("POST /todos", todos.createToDo)
+	// mux.HandleFunc("OPTIONS /todos", todos.optionsAllToDos)
+	// mux.HandleFunc("GET /todos/", todos.getToDo)
+	// mux.HandleFunc("PUT /todos/", todos.createOrReplaceToDo)
+	// mux.HandleFunc("DELETE /todos/", todos.deleteToDo)
+	// mux.HandleFunc("OPTIONS /todos/", todos.optionsToDo)
+	return mux
+}
 
-func (l *toDoList) HandleTodos(w http.ResponseWriter, r *http.Request) {
-    switch r.method {
-	case http.methodGet:
-		var list []toDo
-		for _, d : range l.todos {
-			list.append(list, d)
-		}
-		data, _ := json.Marshal(list)
-		w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(http.StatusOK)
-        w.Write(data)
-	case http.methodPost:
-	case http.methodPut:
-	case http.methodDelete:
-	case http.methodOptions:
+func (l *toDoList) getAllToDos(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	todos := make([]toDo, 0, len(l.list))
 
+	for id, d := range l.list {
+		todos = append(todos, toDo{Id: id, Description: d})
 	}
+	data, err := json.Marshal(todos)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
